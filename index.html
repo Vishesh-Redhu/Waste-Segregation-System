@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<!-- Add class="dark" to html tag to enable dark mode -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waste Sorting System Analytics</title>
+    <!-- 1. Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 2. Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <!-- 3. Firebase SDKs CDN -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <!-- Link to your local CSS file -->
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Dark Mode Config & Flicker Guard -->
+    <script>
+        // 1. Configure Tailwind to use 'class' strategy
+        tailwind.config = {
+            darkMode: 'class'
+        }
+
+        // 2. Flicker Guard: Apply theme before page renders
+        try {
+            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        } catch (_) {}
+    </script>
+</head>
+<!-- Apply dark mode background and text colors -->
+<body class="bg-gray-100 dark:bg-gray-900 font-sans text-gray-800 dark:text-gray-300 transition-colors duration-300">
+
+    <div class="container mx-auto p-4 md:p-6 lg:p-8">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100">Waste Sorting Analytics</h1>
+                <p class="text-gray-500 dark:text-gray-400">A real-time dashboard simulating an automated sorting facility.</p>
+            </div>
+            <!-- Theme Toggle Button -->
+            <div class="flex items-center space-x-4 mt-2 md:mt-0">
+                <button id="btn-theme-toggle" class="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700" title="Toggle theme">
+                    <!-- Sun icon for light mode, Moon for dark -->
+                    <svg id="icon-theme" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Icon will be set by JavaScript -->
+                    </svg>
+                </button>
+                <div id="status-indicator" class="flex items-center space-x-2">
+                    <span id="status-text" class="text-gray-500 dark:text-gray-400 font-medium">Initializing...</span>
+                    <div id="status-dot" class="w-4 h-4 bg-yellow-400 rounded-full animate-pulse"></div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Controls -->
+        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md mb-6 flex flex-wrap items-center gap-4">
+            <button id="btn-start" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition-transform transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none" disabled>Start Simulation</button>
+            <button id="btn-stop" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition-transform transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none" disabled>Stop Simulation</button>
+            <button id="btn-clear" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition-transform transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none ml-auto">Clear Data</button>
+        </div>
+
+        <!-- Advanced Controls -->
+        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md mb-6 grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+             <div>
+                <label for="slider-speed" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Simulation Speed</label>
+                <input type="range" id="slider-speed" min="0.5" max="3" value="1" step="0.5" class="mt-2">
+                <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1 px-1">
+                    <span>0.5x</span><span>1.0x</span><span>1.5x</span><span>2.0x</span><span>2.5x</span><span>3.0x</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                 <label class="flex items-center space-x-3 cursor-pointer">
+                    <span class="text-gray-700 dark:text-gray-300 font-medium">Simulate ML Faults</span>
+                    <div class="relative"><input type="checkbox" id="check-fault" class="sr-only peer"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500 dark:bg-gray-700 dark:after:bg-white dark:after:border-gray-600"></div></div>
+                </label>
+                <div class="flex-grow">
+                    <label for="slider-fault-rate" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Fault Rate: <span id="fault-rate-value" class="font-bold">25%</span></label>
+                    <input type="range" id="slider-fault-rate" min="0" max="1" value="0.25" step="0.05" class="mt-2" disabled>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Analytics Time Filter -->
+        <div class="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-md mb-6">
+            <div id="time-filter-controls" class="flex flex-wrap items-center justify-center gap-2">
+                 <span class="font-semibold text-gray-700 dark:text-gray-300 mr-2">Show Data For:</span>
+                 <button data-filter="all" class="filter-btn active font-medium py-1 px-3 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-blue-500 hover:text-white dark:hover:bg-blue-500 dark:hover:text-white transition-colors text-sm">All Time</button>
+                 <button data-filter="300000" class="filter-btn font-medium py-1 px-3 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-blue-500 hover:text-white dark:hover:bg-blue-500 dark:hover:text-white transition-colors text-sm">Last 5 Min</button>
+                 <button data-filter="1800000" class="filter-btn font-medium py-1 px-3 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-blue-500 hover:text-white dark:hover:bg-blue-500 dark:hover:text-white transition-colors text-sm">Last 30 Min</button>
+                 <button data-filter="3600000" class="filter-btn font-medium py-1 px-3 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-blue-500 hover:text-white dark:hover:bg-blue-500 dark:hover:text-white transition-colors text-sm">Last 1 Hr</button>
+                 <button data-filter="86400000" class="filter-btn font-medium py-1 px-3 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-blue-500 hover:text-white dark:hover:bg-blue-500 dark:hover:text-white transition-colors text-sm">Last 24 Hr</button>
+            </div>
+        </div>
+
+
+        <!-- KPIs -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+            <div class="bg-white dark:bg-gray-800 p-5 rounded-lg shadow-md text-center transition-all duration-300 hover:shadow-xl"><h3 class="text-gray-500 dark:text-gray-400 uppercase text-sm font-semibold">Total Items Processed</h3><p id="kpi-total" class="text-4xl font-bold text-gray-800 dark:text-gray-100 mt-2">0</p></div>
+            <div class="bg-white dark:bg-gray-800 p-5 rounded-lg shadow-md text-center transition-all duration-300 hover:shadow-xl"><h3 class="text-gray-500 dark:text-gray-400 uppercase text-sm font-semibold">Sorting Accuracy</h3><p id="kpi-accuracy" class="text-4xl font-bold text-green-600 dark:text-green-500 mt-2">--%</p></div>
+            <div class="bg-white dark:bg-gray-800 p-5 rounded-lg shadow-md text-center transition-all duration-300 hover:shadow-xl"><h3 class="text-gray-500 dark:text-gray-400 uppercase text-sm font-semibold">Throughput</h3><p id="kpi-throughput" class="text-4xl font-bold text-blue-600 dark:text-blue-500 mt-2">0 <span class="text-xl font-medium">items/min</span></p></div>
+        </div>
+
+        <!-- Charts -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md md:col-span-2 relative h-80"><h3 class="font-bold text-lg text-center mb-2 dark:text-gray-100">Processing Trend (items per 5s)</h3><canvas id="chart-trend"></canvas><div id="trend-placeholder" class="chart-placeholder hidden"></div></div>
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md relative h-80"><h3 class="font-bold text-lg text-center mb-2 dark:text-gray-100">Waste Categories</h3><canvas id="chart-categories"></canvas><div id="categories-placeholder" class="chart-placeholder hidden"></div></div>
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md relative h-80"><h3 class="font-bold text-lg text-center mb-2 dark:text-gray-100">Recycled vs. Dumped</h3><canvas id="chart-recycle"></canvas><div id="recycle-placeholder" class="chart-placeholder hidden"></div></div>
+        </div>
+
+        <!-- Simulation & Log -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md"><h3 class="font-bold text-lg mb-2 dark:text-gray-100">Simulation: Sorting Station</h3><div id="sorting-station" class="relative bg-gray-200 dark:bg-gray-700 h-96 rounded-lg p-4 grid grid-cols-3 grid-rows-3 gap-4"><div id="scanner" class="col-start-2 row-start-2 flex items-center justify-center bg-gray-700 dark:bg-gray-600 rounded-lg shadow-inner"></div></div></div>
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md"><h3 class="font-bold text-lg mb-2 dark:text-gray-100">Live Event Log</h3><div id="event-log" class="h-96 overflow-y-auto bg-gray-50 dark:bg-gray-700 p-2 rounded border border-gray-200 dark:border-gray-600"></div></div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="item-modal" class="fixed inset-0 bg-black bg-opacity-60 dark:bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full shadow-2xl transform transition-all scale-95 opacity-0" id="modal-dialog">
+            <div class="flex justify-between items-center border-b dark:border-gray-700 pb-3 mb-4"><h2 class="text-2xl font-bold text-gray-800 dark:text-gray-100">Item Inspection</h2><button id="btn-close-modal" class="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-3xl">&times;</button></div>
+            <div id="modal-content" class="space-y-3 dark:text-gray-300"></div>
+        </div>
+    </div>
+
+    <!-- Link to the main JavaScript module -->
+    <script src="main.js" type="module"></script>
+</body>
+</html>

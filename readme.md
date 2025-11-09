@@ -75,15 +75,10 @@ simulation.js: Contains the core logic for the waste sorting simulation.
 
 main.js: The central controller that initializes the app and connects all modules.
 
-5. Getting Started
-To run the project locally, you will need a local web server, as the application uses ES6 modules.
-
-Clone the Repository (or download the files):
-
-git clone [https://github.com/quantum-coders-ai/Waste-Management-system.git]
 
 
-Firebase Configuration:
+
+5.Firebase Configuration:
 
 Open the firebase.js file.
 
@@ -129,4 +124,5 @@ Advanced Analytics & Reporting:
 
 
 Implement a feature to export the currently filtered data as a CSV file, allowing for in-depth offline analysis and record-keeping in tools like Excel or Google Sheets.
+
 
